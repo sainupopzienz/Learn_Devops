@@ -5,6 +5,44 @@ Drop a file in → it appears in the Table of Contents automatically.
 
 ## Project Structure
 
+Here's everything used to build your DevOps Interview Wiki:
+Frontend Structure
+
+Pure HTML5 — single index.html, no build step needed
+Vanilla JavaScript (ES6+) — all logic written from scratch, no framework
+
+Markdown Rendering
+
+Marked.js (v9.1.6) — converts your .md files into HTML at runtime, loaded from cdnjs CDN
+
+Fonts (loaded from Google Fonts)
+
+JetBrains Mono — code blocks, badges, monospace elements
+Syne — headings, titles, logo
+DM Sans — body text, general UI
+
+CSS
+
+Pure CSS3 — custom properties (variables), flexbox layout, CSS Grid, media queries for print
+No Tailwind, no Bootstrap, no preprocessor — everything hand-written
+
+Data Layer
+
+No database — topics are just .md files in a topics/ folder
+Browser fetch() API loads each file at runtime
+localStorage not used — stateless on every load
+
+PDF Export
+
+Browser's native window.print() with a dedicated @media print CSS block — no library needed
+
+Hosting
+
+Works as a static site — just open index.html in a browser or drop it on GitHub Pages, Netlify, S3, or any static host
+
+
+That's it — no Node.js, no npm, no bundler, no backend. The entire wiki is one HTML file + a folder of markdown files.
+
 ```
 devops-wiki/
 ├── index.html          ← the entire app (single file)
