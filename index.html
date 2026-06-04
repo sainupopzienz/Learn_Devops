@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevOps Interview Wiki</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+
+:root {
+  --bg:        #0b0f17;
+  --surface:   #131920;
+  --surface2:  #1a2230;
+  --border:    #232d3f;
+  --border2:   #2e3d54;
+  --accent:    #4f9eff;
+  --accent2:   #f97060;
+  --accent3:   #3dd68c;
+  --text:      #dce8f5;
+  --muted:     #6b7f99;
+  --sidebar-w: 300px;
+  --header-h:  60px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── HEADER ── */
+header {
+  height: var(--header-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.logo {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800; font-size: 17px;
+  color: var(--text);
+  display: flex; align-items: center; gap: 10px;
+  white-space: nowrap; text-decoration: none;
+}
+.logo span { color: var(--accent); }
+.logo-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; background: var(--accent);
+  color: #0b0f17; padding: 2px 8px;
+  border-radius: 20px; font-weight: 700;
+}
+.header-search {
+  flex: 1; max-width: 380px;
+  margin: 0 auto; position: relative;
+}
+.header-search input {
+  width: 100%; background: var(--bg);
+  border: 1px solid var(--border2); color: var(--text);
+  padding: 8px 14px 8px 34px;
+  border-radius: 8px; font-family: 'DM Sans', sans-serif;
+  font-size: 13px; outline: none; transition: border 0.2s;
+}
+.header-search input:focus { border-color: var(--accent); }
+.search-icon {
+  position: absolute; left: 11px; top: 50%;
+  transform: translateY(-50%); color: var(--muted); font-size: 13px;
+}
+.header-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+.badge-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--muted);
+  background: var(--surface2); border: 1px solid var(--border2);
+  padding: 3px 10px; border-radius: 20px;
+}
+
+.btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; border: none;
+  transition: all 0.15s; white-space: nowrap;
+  text-decoration: none;
+}
+.btn-primary { background: var(--accent); color: #0b0f17; }
+.btn-primary:hover { background: #6aadff; transform: translateY(-1px); }
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border2); color: var(--muted);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 5px 11px; font-size: 12px; }
+
+/* ── LAYOUT ── */
+.app-body { display: flex; flex: 1; overflow: hidden; }
+
+/* ── SIDEBAR ── */
+aside {
+  width: var(--sidebar-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  flex-shrink: 0; overflow: hidden;
+}
+.sidebar-head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sidebar-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--muted);
+}
+.sidebar-list {
+  flex: 1; overflow-y: auto; padding: 6px;
+}
+.sidebar-list::-webkit-scrollbar { width: 3px; }
+.sidebar-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+.toc-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 10px; border-radius: 7px;
+  cursor: pointer; transition: all 0.15s;
+  margin-bottom: 2px; border: 1px solid transparent;
+}
+.toc-item:hover { background: var(--surface2); border-color: var(--border); }
+.toc-item.active {
+  background: rgba(79,158,255,0.08);
+  border-color: rgba(79,158,255,0.25);
+}
+.toc-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  color: var(--accent); background: rgba(79,158,255,0.1);
+  border: 1px solid rgba(79,158,255,0.2);
+  padding: 2px 5px; border-radius: 4px;
+  min-width: 34px; text-align: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.toc-label { font-size: 12.5px; color: var(--text); line-height: 1.4; }
+.toc-item.active .toc-label { color: var(--accent); }
+
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.add-hint {
+  font-size: 11.5px; color: var(--muted); line-height: 1.5;
+  display: flex; align-items: flex-start; gap: 6px;
+}
+.add-hint code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px; background: var(--surface2);
+  color: var(--accent2); padding: 1px 5px; border-radius: 3px;
+}
+
+/* ── MAIN ── */
+main {
+  flex: 1; overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+main::-webkit-scrollbar { width: 5px; }
+main::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+/* ── HOME ── */
+#home-view {
+  min-height: 100%; display: flex;
+  flex-direction: column; align-items: center;
+  justify-content: center; padding: 60px 40px; text-align: center;
+  background:
+    radial-gradient(ellipse at 35% 45%, rgba(79,158,255,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 72% 65%, rgba(249,112,96,0.05) 0%, transparent 50%);
+}
+.home-eyebrow {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--accent); border: 1px solid rgba(79,158,255,0.3);
+  padding: 6px 18px; border-radius: 20px; margin-bottom: 28px;
+  background: rgba(79,158,255,0.05);
+}
+.home-title {
+  font-family: 'Syne', sans-serif;
+  font-size: clamp(30px, 4vw, 50px); font-weight: 800;
+  line-height: 1.15; margin-bottom: 16px;
+  background: linear-gradient(135deg, #dce8f5 0%, #4f9eff 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.home-sub { font-size: 14.5px; color: var(--muted); max-width: 500px; margin-bottom: 36px; line-height: 1.7; }
+.home-stats { display: flex; gap: 40px; margin-bottom: 40px; }
+.stat { text-align: center; }
+.stat-num { font-family: 'Syne', sans-serif; font-size: 34px; font-weight: 800; color: var(--accent); display: block; }
+.stat-label { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+.how-to-add {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 12px; padding: 20px 28px;
+  max-width: 480px; text-align: left;
+}
+.how-title {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--accent3); margin-bottom: 12px;
+}
+.how-step {
+  display: flex; gap: 12px; align-items: flex-start;
+  margin-bottom: 10px; font-size: 13px; color: var(--muted);
+}
+.how-step-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--accent); background: rgba(79,158,255,0.1);
+  border: 1px solid rgba(79,158,255,0.2);
+  min-width: 24px; height: 22px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.how-step code {
+  font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+  background: var(--surface2); color: var(--accent2);
+  padding: 1px 6px; border-radius: 4px;
+}
+.how-step strong { color: var(--text); }
+
+/* ── TOPIC ── */
+#topic-view { display: none; flex-direction: column; min-height: 100%; }
+
+.topic-header {
+  padding: 24px 36px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 20px; flex-shrink: 0;
+}
+.topic-meta { flex: 1; }
+.topic-q-badge {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--accent); background: rgba(79,158,255,0.1);
+  border: 1px solid rgba(79,158,255,0.25);
+  padding: 3px 12px; border-radius: 20px;
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.topic-filename {
+  font-size: 11px; color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+.topic-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 21px; font-weight: 700; line-height: 1.3; color: var(--text);
+}
+.topic-actions { display: flex; gap: 8px; flex-shrink: 0; padding-top: 2px; }
+
+.topic-body {
+  padding: 32px 36px;
+  flex: 1; max-width: 860px;
+}
+
+/* Markdown */
+.topic-body h1 { display: none; } /* title already shown in header */
+.topic-body h2 {
+  font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700;
+  color: var(--text); margin: 28px 0 12px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.topic-body h3 {
+  font-family: 'Syne', sans-serif; font-size: 11.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--accent3); margin: 26px 0 10px;
+}
+.topic-body h2:first-child, .topic-body h3:first-child { margin-top: 0; }
+.topic-body p { font-size: 14px; line-height: 1.75; margin-bottom: 12px; color: var(--text); }
+.topic-body strong { color: #fff; font-weight: 600; }
+.topic-body em { color: var(--muted); }
+.topic-body ul { list-style: none; margin-bottom: 16px; }
+.topic-body ul li {
+  padding: 4px 0 4px 20px; position: relative;
+  font-size: 13.5px; line-height: 1.65; color: var(--text);
+}
+.topic-body ul li::before {
+  content: '→'; position: absolute; left: 0;
+  color: var(--accent); font-size: 12px; top: 5px;
+}
+.topic-body ol { padding-left: 22px; margin-bottom: 16px; }
+.topic-body ol li { font-size: 13.5px; line-height: 1.65; color: var(--text); padding: 3px 0; }
+.topic-body pre {
+  background: #070b11;
+  border: 1px solid var(--border2);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px; padding: 18px 20px;
+  overflow-x: auto; margin: 14px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; line-height: 1.65; color: #a5d6ff;
+}
+.topic-body code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; color: var(--accent2);
+  background: rgba(249,112,96,0.1);
+  padding: 1px 6px; border-radius: 4px;
+}
+.topic-body pre code { background: none; color: #a5d6ff; padding: 0; }
+.topic-body table { width: 100%; border-collapse: collapse; margin: 14px 0; }
+.topic-body th {
+  background: var(--surface2); color: var(--text); font-weight: 600;
+  padding: 10px 14px; text-align: left;
+  border-bottom: 2px solid var(--accent);
+  font-family: 'Syne', sans-serif; font-size: 12px;
+}
+.topic-body td {
+  padding: 9px 14px; border-bottom: 1px solid var(--border);
+  vertical-align: top; color: var(--text); font-size: 13px;
+}
+.topic-body tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+.topic-body blockquote {
+  background: rgba(79,158,255,0.06);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  padding: 12px 18px; margin: 14px 0;
+  font-size: 13px; color: var(--muted);
+}
+.topic-body blockquote strong { color: var(--accent); }
+.topic-body hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+/* ── PREV/NEXT NAV ── */
+.topic-nav {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 36px 30px;
+  border-top: 1px solid var(--border);
+  gap: 12px; flex-shrink: 0;
+}
+.nav-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-radius: 8px;
+  border: 1px solid var(--border2); background: var(--surface);
+  color: var(--muted); cursor: pointer;
+  font-family: 'DM Sans', sans-serif; font-size: 13px;
+  transition: all 0.15s; min-width: 0; flex: 1; max-width: 260px;
+}
+.nav-btn:hover:not(.disabled) { border-color: var(--accent); color: var(--accent); }
+.nav-btn.disabled { opacity: 0.3; pointer-events: none; }
+.nav-btn.next { justify-content: flex-end; }
+.nav-info { min-width: 0; }
+.nav-dir { font-size: 10px; color: var(--muted); font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
+.nav-name { font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── SEARCH VIEW ── */
+#search-view { display: none; padding: 28px 36px; }
+.search-heading {
+  font-family: 'Syne', sans-serif; font-size: 14px;
+  color: var(--muted); margin-bottom: 18px;
+}
+.search-heading span { color: var(--accent); font-weight: 600; }
+.search-result {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 18px;
+  margin-bottom: 8px; cursor: pointer; transition: all 0.15s;
+}
+.search-result:hover { border-color: var(--accent); background: var(--surface2); }
+.sr-num { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); margin-bottom: 4px; }
+.sr-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.sr-snippet { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+mark { background: rgba(79,158,255,0.2); color: var(--accent); border-radius: 2px; padding: 0 1px; }
+
+/* ── LOADING / EMPTY ── */
+.state-box {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 60px 40px; text-align: center;
+  color: var(--muted); gap: 10px; min-height: 200px;
+}
+.state-icon { font-size: 36px; opacity: 0.5; }
+.state-box p { font-size: 14px; line-height: 1.6; }
+.state-box code { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent2); }
+
+/* ── ERROR BANNER ── */
+.error-banner {
+  background: rgba(249,112,96,0.1);
+  border: 1px solid rgba(249,112,96,0.3);
+  border-radius: 8px; padding: 12px 16px;
+  font-size: 13px; color: var(--accent2);
+  margin-bottom: 16px;
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--accent3); color: #0b0f17;
+  padding: 11px 20px; border-radius: 10px;
+  font-weight: 600; font-size: 13px;
+  transform: translateY(60px); opacity: 0;
+  transition: all 0.25s ease; z-index: 2000;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── PRINT ── */
+@media print {
+  body { background: #fff !important; color: #111 !important; overflow: visible !important; height: auto !important; }
+  header, aside, .topic-actions, .topic-nav { display: none !important; }
+  main { overflow: visible !important; }
+  #home-view, #search-view { display: none !important; }
+  #topic-view { display: flex !important; min-height: auto; }
+  .topic-header {
+    background: #1a3a6b !important; color: #fff !important;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    padding: 20px 24px;
+  }
+  .topic-title, .topic-q-badge { color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topic-body { padding: 20px 24px; max-width: 100%; }
+  .topic-body pre { background: #f5f8fc !important; color: #111 !important; border-left-color: #1a3a6b !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topic-body th { background: #1a3a6b !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topic-body td { border-color: #ccc !important; color: #111 !important; }
+  .topic-body blockquote { background: #e8f0fe !important; border-color: #1a3a6b !important; color: #333 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topic-body code { background: #f0f0f0 !important; color: #c0392b !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topic-body pre code { background: none !important; color: #111 !important; }
+  .topic-body h3 { color: #1a3a6b !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topic-body ul li::before { color: #1a3a6b !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="#" onclick="showHome()">⚙ <span>DevOps</span> Wiki <span class="logo-badge">Interview Prep</span></a>
+  <div class="header-search">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder='Search topics... (press "/" to focus)' oninput="handleSearch(this.value)">
+  </div>
+  <div class="header-right">
+    <span class="badge-count" id="headerCount">0 topics</span>
+    <button class="btn btn-ghost btn-sm" onclick="showHome()">🏠 Home</button>
+    <button class="btn btn-primary btn-sm" onclick="downloadPDF()" id="pdfBtn" style="display:none">⬇ PDF</button>
+  </div>
+</header>
+
+<div class="app-body">
+
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="sidebar-head">
+      <span class="sidebar-label">Table of Contents</span>
+    </div>
+    <div class="sidebar-list" id="sidebarList">
+      <div class="state-box"><div class="state-icon">⏳</div><p>Loading topics...</p></div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="add-hint">
+        <span>➕</span>
+        <span>Drop a <code>.md</code> file into <code>topics/</code> — it appears here automatically.</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main id="mainArea">
+
+    <!-- HOME -->
+    <div id="home-view">
+      <div class="home-eyebrow">Interview Preparation Guide</div>
+      <h1 class="home-title">DevOps Interview<br>Reference Wiki</h1>
+      <p class="home-sub">Click any topic in the sidebar to read it. Download individual topics as PDF. Add new topics by dropping <strong>.md files</strong> into the <code style="font-family:monospace;font-size:13px;background:var(--surface2);padding:1px 6px;border-radius:4px;color:var(--accent2)">topics/</code> folder.</p>
+      <div class="home-stats">
+        <div class="stat"><span class="stat-num" id="statTopics">0</span><div class="stat-label">Topics</div></div>
+        <div class="stat"><span class="stat-num">⬇</span><div class="stat-label">PDF per topic</div></div>
+        <div class="stat"><span class="stat-num">🔍</span><div class="stat-label">Full search</div></div>
+      </div>
+      <div class="how-to-add">
+        <div class="how-title">✦ How to Add a New Topic</div>
+        <div class="how-step"><span class="how-step-num">1</span><span>Create a file: <code>topics/25-squid-proxy.md</code></span></div>
+        <div class="how-step"><span class="how-step-num">2</span><span>Start with <code># Your Title</code> on the first line</span></div>
+        <div class="how-step"><span class="how-step-num">3</span><span>Write content using <strong>Markdown</strong> (headings, bullets, code, tables)</span></div>
+        <div class="how-step"><span class="how-step-num">4</span><span>Refresh the page — it auto-appears in the TOC with the right number</span></div>
+      </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div id="search-view">
+      <p class="search-heading">Search results for "<span id="searchTerm"></span>"</p>
+      <div id="searchResults"></div>
+    </div>
+
+    <!-- TOPIC -->
+    <div id="topic-view">
+      <div class="topic-header">
+        <div class="topic-meta">
+          <div class="topic-q-badge">
+            <span id="topicBadge">Q 01</span>
+            <span class="topic-filename" id="topicFile"></span>
+          </div>
+          <div class="topic-title" id="topicTitle"></div>
+        </div>
+        <div class="topic-actions">
+          <button class="btn btn-ghost btn-sm" onclick="downloadPDF()">⬇ Download PDF</button>
+        </div>
+      </div>
+      <div class="topic-body" id="topicBody"></div>
+      <div class="topic-nav">
+        <button class="nav-btn prev disabled" id="prevBtn" onclick="navigate(-1)">
+          <span>←</span>
+          <div class="nav-info">
+            <div class="nav-dir">Previous</div>
+            <div class="nav-name" id="prevName">—</div>
+          </div>
+        </button>
+        <button class="nav-btn next disabled" id="nextBtn" onclick="navigate(1)">
+          <div class="nav-info" style="text-align:right">
+            <div class="nav-dir">Next</div>
+            <div class="nav-name" id="nextName">—</div>
+          </div>
+          <span>→</span>
+        </button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────────────────
+// List of markdown files inside topics/ — add filenames here when you add new files
+// They will appear in TOC in the order listed. The number shown is their position.
+// Filename format: anything.md  — the H1 in the file becomes the TOC title.
+// To add a new topic: add "topics/your-file.md" to this array, done.
+
+const TOPIC_FILES = [
+  "topics/01-nginx-vs-alb.md",
+  "topics/02-auto-scaling-group.md",
+  "topics/03-terraform-pipeline.md",
+  "topics/04-cicd-stages.md",
+  "topics/05-cicd-issues.md",
+  "topics/06-eks-vs-ecs.md",
+  "topics/07-eks-issues.md",
+  "topics/08-aws-real-problems.md",
+  "topics/09-vpc-iam-setup.md",
+  "topics/10-security-implementations.md",
+  "topics/11-pod-node-affinity.md",
+  "topics/12-terraform-multi-env.md",
+  "topics/13-terraform-secrets.md",
+  "topics/14-argocd-gitops-secrets.md",
+  "topics/15-helm-guide.md",
+  "topics/16-eks-zero-downtime-upgrade.md",
+  "topics/17-pod-503-debug.md",
+  "topics/18-prometheus-grafana-loki.md",
+  "topics/19-ha-3-tier-architecture.md",
+  "topics/20-monolith-to-microservices.md",
+  "topics/21-docker-security.md",
+  "topics/22-branching-strategy.md",
+  "topics/23-git-merge-vs-rebase.md",
+  "topics/24-cicd-caching.md",
+  // ↓ ADD NEW TOPICS HERE — just drop the file in topics/ and add the path
+  // "topics/25-squid-proxy.md",
+  // "topics/26-service-mesh-istio.md",
+];
+
+// ─── STATE ─────────────────────────────────────────────────────────────────
+let topics = [];       // [{file, title, content}, ...]
+let currentIdx = -1;
+
+// ─── BOOT ──────────────────────────────────────────────────────────────────
+async function init() {
+  topics = [];
+  const errors = [];
+
+  await Promise.all(TOPIC_FILES.map(async (file, i) => {
+    try {
+      const res = await fetch(file);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = await res.text();
+      const title = extractTitle(raw);
+      topics[i] = { file, title, content: raw };
+    } catch(e) {
+      errors.push(file);
+      topics[i] = null;
+    }
+  }));
+
+  topics = topics.filter(Boolean);
+
+  if (errors.length) {
+    console.warn('Could not load:', errors);
+  }
+
+  renderSidebar();
+  updateCounts();
+
+  // Route from URL hash
+  const hash = location.hash.slice(1);
+  if (hash) {
+    const idx = topics.findIndex(t => slugify(t.file) === hash || slugify(t.title) === hash);
+    if (idx >= 0) { showTopic(idx); return; }
+  }
+  showHome();
+}
+
+// Extract first H1 from markdown
+function extractTitle(md) {
+  const m = md.match(/^#\s+(.+)/m);
+  return m ? m[1].trim() : 'Untitled';
+}
+
+function slugify(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+// ─── SIDEBAR ───────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const list = document.getElementById('sidebarList');
+  if (!topics.length) {
+    list.innerHTML = `<div class="state-box">
+      <div class="state-icon">📂</div>
+      <p>No topics found.<br>Add <code>.md</code> files to <code>topics/</code> and list them in <code>TOPIC_FILES</code>.</p>
+    </div>`;
+    return;
+  }
+  list.innerHTML = topics.map((t, i) => `
+    <div class="toc-item ${i === currentIdx ? 'active' : ''}" onclick="showTopic(${i})" id="toc-${i}">
+      <span class="toc-num">Q${String(i+1).padStart(2,'0')}</span>
+      <span class="toc-label">${esc(t.title)}</span>
+    </div>
+  `).join('');
+}
+
+function updateCounts() {
+  const n = topics.length;
+  document.getElementById('headerCount').textContent = `${n} topic${n !== 1 ? 's' : ''}`;
+  const s = document.getElementById('statTopics');
+  if (s) s.textContent = n;
+}
+
+// ─── VIEWS ─────────────────────────────────────────────────────────────────
+function showHome() {
+  currentIdx = -1;
+  document.getElementById('home-view').style.display = 'flex';
+  document.getElementById('topic-view').style.display = 'none';
+  document.getElementById('search-view').style.display = 'none';
+  document.getElementById('pdfBtn').style.display = 'none';
+  document.getElementById('searchInput').value = '';
+  renderSidebar();
+  history.replaceState(null, '', location.pathname);
+}
+
+function showTopic(idx) {
+  if (idx < 0 || idx >= topics.length) return;
+  currentIdx = idx;
+  const t = topics[idx];
+
+  document.getElementById('home-view').style.display = 'none';
+  document.getElementById('search-view').style.display = 'none';
+  document.getElementById('pdfBtn').style.display = 'flex';
+
+  const tv = document.getElementById('topic-view');
+  tv.style.display = 'flex';
+  tv.style.flexDirection = 'column';
+
+  // Badge + title
+  document.getElementById('topicBadge').textContent = `Q ${String(idx+1).padStart(2,'0')} / ${topics.length}`;
+  document.getElementById('topicFile').textContent = t.file.split('/').pop();
+  document.getElementById('topicTitle').textContent = t.title;
+
+  // Render markdown (skip first H1 since title is in header)
+  const body = t.content.replace(/^#\s+.+\n?/, '');
+  document.getElementById('topicBody').innerHTML = marked.parse(body);
+
+  // Prev / Next
+  const prev = document.getElementById('prevBtn');
+  const next = document.getElementById('nextBtn');
+  const prevName = document.getElementById('prevName');
+  const nextName = document.getElementById('nextName');
+
+  if (idx > 0) {
+    prev.classList.remove('disabled');
+    prevName.textContent = topics[idx-1].title;
+  } else {
+    prev.classList.add('disabled');
+    prevName.textContent = '—';
+  }
+  if (idx < topics.length - 1) {
+    next.classList.remove('disabled');
+    nextName.textContent = topics[idx+1].title;
+  } else {
+    next.classList.add('disabled');
+    nextName.textContent = '—';
+  }
+
+  renderSidebar();
+  document.querySelector('main').scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Scroll sidebar item into view
+  const tocEl = document.getElementById(`toc-${idx}`);
+  if (tocEl) tocEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+  // Update URL hash
+  history.replaceState(null, '', `#${slugify(t.title)}`);
+}
+
+function navigate(dir) {
+  showTopic(currentIdx + dir);
+}
+
+// ─── SEARCH ────────────────────────────────────────────────────────────────
+function handleSearch(q) {
+  q = q.trim();
+  if (!q) { showHome(); return; }
+
+  document.getElementById('home-view').style.display = 'none';
+  document.getElementById('topic-view').style.display = 'none';
+  document.getElementById('pdfBtn').style.display = 'none';
+  document.getElementById('search-view').style.display = 'block';
+  document.getElementById('searchTerm').textContent = q;
+
+  const ql = q.toLowerCase();
+  const hits = topics
+    .map((t, i) => ({
+      t, i,
+      score: (t.title.toLowerCase().includes(ql) ? 10 : 0) +
+             (t.content.toLowerCase().includes(ql) ? 1 : 0)
+    }))
+    .filter(r => r.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  const container = document.getElementById('searchResults');
+  if (!hits.length) {
+    container.innerHTML = `<div class="state-box"><div class="state-icon">🔍</div><p>No results for "<strong>${esc(q)}</strong>"</p></div>`;
+    return;
+  }
+
+  const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  const hl = s => esc(s).replace(re, m => `<mark>${esc(m)}</mark>`);
+
+  container.innerHTML = hits.map(({ t, i }) => {
+    const plain = t.content.replace(/[#*`|>\-]/g, ' ').replace(/\s+/g, ' ');
+    const match = plain.toLowerCase().indexOf(ql);
+    const snippet = match >= 0
+      ? '...' + plain.substring(Math.max(0, match - 40), match + 100) + '...'
+      : plain.substring(0, 120) + '...';
+    return `<div class="search-result" onclick="showTopic(${i})">
+      <div class="sr-num">Q${String(i+1).padStart(2,'0')} · ${esc(t.file.split('/').pop())}</div>
+      <div class="sr-title">${hl(t.title)}</div>
+      <div class="sr-snippet">${hl(snippet)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── PDF ───────────────────────────────────────────────────────────────────
+function downloadPDF() {
+  if (currentIdx < 0) return;
+  window.print();
+}
+
+// ─── TOAST ─────────────────────────────────────────────────────────────────
+function toast(msg, color) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = color || 'var(--accent3)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ─── UTILS ─────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── KEYBOARD ──────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); if (currentIdx >= 0) navigate(1); }
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); if (currentIdx >= 0) navigate(-1); }
+  if (e.key === '/') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+  if (e.key === 'Escape') { document.getElementById('searchInput').blur(); }
+});
+
+// ─── START ─────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
