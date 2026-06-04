@@ -5,6 +5,17 @@ Drop a file in → it appears in the Table of Contents automatically.
 
 ## Project Structure
 
+```
+devops-wiki/
+├── index.html          ← the entire app (single file)
+├── topics/             ← one .md file per topic
+│   ├── 01-nginx-vs-alb.md
+│   ├── 02-auto-scaling-group.md
+│   └── ...             ← add your own here
+├── Dockerfile
+└── docker-compose.yml
+```
+
 Here's everything used to build your DevOps Interview Wiki:
 Frontend Structure
 
@@ -43,16 +54,6 @@ Works as a static site — just open index.html in a browser or drop it on GitHu
 
 That's it — no Node.js, no npm, no bundler, no backend. The entire wiki is one HTML file + a folder of markdown files.
 
-```
-devops-wiki/
-├── index.html          ← the entire app (single file)
-├── topics/             ← one .md file per topic
-│   ├── 01-nginx-vs-alb.md
-│   ├── 02-auto-scaling-group.md
-│   └── ...             ← add your own here
-├── Dockerfile
-└── docker-compose.yml
-```
 
 ## Adding a New Topic
 
