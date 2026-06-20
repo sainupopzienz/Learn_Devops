@@ -1,18 +1,115 @@
+name: Frontend Security CI/CD
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+push:
+branches:
+- main
+pull_request:
+
+permissions:
+contents: read
+actions: read
+security-events: write
+
+env:
+IMAGE_NAME: frontend-app
 
 jobs:
-  ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
+security-build:
+runs-on: ubuntu-latest
 
-      - name: Deploy
-        if: github.ref == 'refs/heads/main'
-        env:
-          deploy_url: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: |
-          curl "$deploy_url"
+```
+steps:
+  - name: Checkout Repository
+    uses: actions/checkout@v4
+
+  - name: Verify Dockerfile
+    run: |
+      test -f Dockerfile || {
+        echo "Dockerfile not found"
+        exit 1
+      }
+
+  - name: Build Docker Image
+    run: |
+      docker build \
+      -t $IMAGE_NAME:${{ github.sha }} .
+
+  - name: Scan Secrets
+    uses: gitleaks/gitleaks-action@v2
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  - name: Trivy Filesystem Scan
+    uses: aquasecurity/trivy-action@0.28.0
+    with:
+      scan-type: fs
+      scan-ref: .
+      format: json
+      output: trivy-fs.json
+
+  - name: Trivy Image Scan
+    uses: aquasecurity/trivy-action@0.28.0
+    with:
+      image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+      format: json
+      output: trivy-image.json
+
+  - name: Fail on Critical Vulnerabilities
+    uses: aquasecurity/trivy-action@0.28.0
+    with:
+      image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+      severity: CRITICAL
+      exit-code: 1
+
+  - name: Create Basic Security Report
+    run: |
+      echo "# Security Review" > SECURITY_REVIEW.md
+      echo "" >> SECURITY_REVIEW.md
+      echo "Repository: ${{ github.repository }}" >> SECURITY_REVIEW.md
+      echo "Commit: ${{ github.sha }}" >> SECURITY_REVIEW.md
+      echo "" >> SECURITY_REVIEW.md
+      echo "Docker build completed successfully." >> SECURITY_REVIEW.md
+
+  - name: AI Review Placeholder
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    run: |
+      if [ -z "$OPENAI_API_KEY" ]; then
+        echo "OPENAI_API_KEY secret missing"
+        exit 1
+      fi
+
+      echo "" >> SECURITY_REVIEW.md
+      echo "AI Review Enabled" >> SECURITY_REVIEW.md
+      echo "Trivy reports available for analysis." >> SECURITY_REVIEW.md
+
+  - name: Upload Security Report
+    uses: actions/upload-artifact@v4
+    with:
+      name: security-review
+      path: SECURITY_REVIEW.md
+
+  - name: Upload Scan Results
+    uses: actions/upload-artifact@v4
+    with:
+      name: vulnerability-reports
+      path: |
+        trivy-fs.json
+        trivy-image.json
+```
+
+deploy:
+runs-on: ubuntu-latest
+needs: security-build
+
+```
+if: github.ref == 'refs/heads/main'
+
+steps:
+  - name: Trigger Render Deployment
+    env:
+      DEPLOY_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+    run: |
+      curl -X POST "$DEPLOY_URL"
+```
