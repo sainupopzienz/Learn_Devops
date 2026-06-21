@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""
+AI-Powered CI/CD Error Analyzer
+Analyzes Docker, dependency, and test failures using OpenAI API
+"""
+
+import os
+import json
+import sys
+import argparse
+from pathlib import Path
+from typing import Dict, Optional
+
+try:
+    import requests
+except ImportError:
+    print("Installing requests...")
+    os.system("pip install requests -q")
+    import requests
+
+
+class CIPipelineAnalyzer:
+    """Analyze CI/CD pipeline errors using OpenAI"""
+    
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.base_url = "https://api.openai.com/v1/chat/completions"
+        self.errors = {
+            "docker_build": None,
+            "dependencies": None,
+            "tests": None,
+        }
+        
+        if not self.api_key:
+            print("⚠️  WARNING: OPENAI_API_KEY not set. Set it with:")
+            print("   export OPENAI_API_KEY='sk-...'")
+    
+    def load_logs(self, log_dir: str = ".") -> None:
+        """Load error logs from files"""
+        log_files = {
+            "docker_build": "docker-build.log",
+            "dependencies": "dependencies.log",
+            "tests": "test-output.log",
+        }
+        
+        for key, filename in log_files.items():
+            filepath = Path(log_dir) / filename
+            if filepath.exists():
+                try:
+                    with open(filepath, "r") as f:
+                        content = f.read()
+                        self.errors[key] = content
+                        print(f"✅ Loaded {filename}")
+                except Exception as e:
+                    print(f"❌ Error reading {filename}: {e}")
+    
+    def detect_error_type(self) -> str:
+        """Identify the type of error"""
+        if self.errors["docker_build"]:
+            if "File not found" in self.errors["docker_build"]:
+                return "Missing Dockerfile"
+            elif "FROM" in self.errors["docker_build"]:
+                return "Invalid base image"
+            elif "RUN" in self.errors["docker_build"]:
+                return "Docker build command failure"
+            return "Docker build error"
+        
+        if self.errors["dependencies"]:
+            if "permission denied" in self.errors["dependencies"].lower():
+                return "Permission error"
+            elif "not found" in self.errors["dependencies"].lower():
+                return "Missing dependency"
+            elif "version" in self.errors["dependencies"].lower():
+                return "Version conflict"
+            return "Dependency installation error"
+        
+        if self.errors["tests"]:
+            return "Test failure"
+        
+        return "Unknown error"
+    
+    def analyze_with_ai(self, model: str = "gpt-3.5-turbo") -> Optional[str]:
+        """Send error logs to OpenAI for analysis"""
+        
+        if not self.api_key:
+            print("❌ OPENAI_API_KEY not configured")
+            return None
+        
+        # Check if there are actual errors
+        if not any(self.errors.values()):
+            print("✅ No errors detected")
+            return None
+        
+        # Build the prompt
+        prompt = self._build_prompt()
+        
+        print(f"\n🤖 Analyzing with OpenAI ({model})...")
+        print("=" * 70)
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": """You are a DevOps/DevSecOps expert analyzing CI/CD pipeline failures.
+Provide:
+1. **Root Cause**: What went wrong and why
+2. **Quick Fix**: Immediate steps to resolve
+3. **Prevention**: How to prevent this in future
+4. **Resources**: Links or code references if applicable
+
+Be concise, technical, and actionable. Use markdown formatting."""
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "max_tokens": 2000,
+            "temperature": 0.7
+        }
+        
+        try:
+            response = requests.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                analysis = data["choices"][0]["message"]["content"]
+                return analysis
+            else:
+                print(f"❌ OpenAI API error: {response.status_code}")
+                print(f"Response: {response.text}")
+                return None
+        
+        except requests.exceptions.Timeout:
+            print("❌ API request timed out")
+            return None
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            return None
+    
+    def _build_prompt(self) -> str:
+        """Build the analysis prompt"""
+        prompt = "Analyze these CI/CD pipeline errors:\n\n"
+        
+        if self.errors["docker_build"]:
+            prompt += "## Docker Build Error\n```\n"
+            prompt += self.errors["docker_build"][:2000]
+            prompt += "\n```\n\n"
+        
+        if self.errors["dependencies"]:
+            prompt += "## Dependency Installation Error\n```\n"
+            prompt += self.errors["dependencies"][:2000]
+            prompt += "\n```\n\n"
+        
+        if self.errors["tests"]:
+            prompt += "## Test Error\n```\n"
+            prompt += self.errors["tests"][:2000]
+            prompt += "\n```\n\n"
+        
+        return prompt
+    
+    def save_report(self, analysis: str, filename: str = "ai-analysis-report.md") -> None:
+        """Save analysis to file"""
+        with open(filename, "w") as f:
+            f.write("# AI Error Analysis Report\n\n")
+            f.write(f"**Error Type**: {self.detect_error_type()}\n\n")
+            f.write(analysis)
+        
+        print(f"\n✅ Report saved to {filename}")
+    
+    def print_analysis(self, analysis: str) -> None:
+        """Print analysis to console"""
+        print("\n" + "=" * 70)
+        print("🤖 AI ANALYSIS RESULTS")
+        print("=" * 70)
+        print(analysis)
+        print("=" * 70 + "\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="AI-Powered CI/CD Pipeline Error Analyzer"
+    )
+    parser.add_argument(
+        "--log-dir",
+        default=".",
+        help="Directory containing log files (default: current directory)"
+    )
+    parser.add_argument(
+        "--model",
+        default="gpt-3.5-turbo",
+        choices=["gpt-3.5-turbo", "gpt-4"],
+        help="OpenAI model to use"
+    )
+    parser.add_argument(
+        "--save",
+        default="ai-analysis-report.md",
+        help="Save report to file"
+    )
+    parser.add_argument(
+        "--no-save",
+        action="store_true",
+        help="Don't save report to file"
+    )
+    parser.add_argument(
+        "--api-key",
+        help="OpenAI API key (or set OPENAI_API_KEY env var)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Initialize analyzer
+    analyzer = CIPipelineAnalyzer(api_key=args.api_key)
+    
+    # Load logs
+    print(f"📂 Loading logs from {args.log_dir}...")
+    analyzer.load_logs(args.log_dir)
+    
+    # Analyze
+    analysis = analyzer.analyze_with_ai(model=args.model)
+    
+    if analysis:
+        analyzer.print_analysis(analysis)
+        
+        if not args.no_save:
+            analyzer.save_report(analysis, args.save)
+    else:
+        print("⚠️  No analysis available")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
