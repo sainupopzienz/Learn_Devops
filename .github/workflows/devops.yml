@@ -21,7 +21,7 @@ jobs:
       # -------------------------
       - name: Build Docker Image
         id: build
-        continue-on-error: true
+        #continue-on-error: true
         run: |
           docker build -t devops-wiki . 2>&1 | tee docker.log
           echo "docker_status=$?" >> $GITHUB_OUTPUT
