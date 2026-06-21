@@ -1,3 +1,5 @@
+name: CI with AI Error Detection
+
 on:
   pull_request:
   push:
@@ -6,12 +8,316 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
 
-      - name: Deploy
-        if: github.ref == 'refs/heads/main'
+      # Step 1: Analyze Docker & Dependencies
+      - name: Analyze Environment
+        id: analyze
+        run: |
+          echo "::group::Environment Analysis"
+          echo "Docker version:"
+          docker --version
+          
+          echo "Node version (if applicable):"
+          node --version 2>/dev/null || echo "Node not installed"
+          
+          echo "Python version:"
+          python3 --version 2>/dev/null || echo "Python not installed"
+          
+          echo "::endgroup::"
+
+      # Step 2: Build Docker Image (with error capture)
+      - name: Build Docker Image
+        id: docker_build
+        continue-on-error: true
+        run: |
+          docker build -t myapp:latest . 2>&1 | tee docker-build.log
+          echo "docker_build_status=$?" >> $GITHUB_OUTPUT
+
+      # Step 3: Install dependencies
+      - name: Install Dependencies
+        id: dependencies
+        continue-on-error: true
+        run: |
+          if [ -f "package.json" ]; then
+            npm ci 2>&1 | tee dependencies.log
+            echo "deps_status=$?" >> $GITHUB_OUTPUT
+          elif [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt 2>&1 | tee dependencies.log
+            echo "deps_status=$?" >> $GITHUB_OUTPUT
+          else
+            echo "No dependency file found"
+          fi
+
+      # Step 4: Run Tests
+      - name: Run Tests
+        id: tests
+        continue-on-error: true
+        run: |
+          if [ -f "package.json" ]; then
+            npm test 2>&1 | tee test-output.log
+          elif [ -f "pytest.ini" ] || [ -f "setup.py" ]; then
+            python3 -m pytest 2>&1 | tee test-output.log
+          else
+            echo "No test framework detected"
+          fi
+          echo "test_status=$?" >> $GITHUB_OUTPUT
+
+      # Step 5: Analyze failures with AI
+      - name: AI-Powered Error Analysis
+        id: ai_analysis
+        if: |
+          failure() || 
+          steps.docker_build.outputs.docker_build_status != 0 || 
+          steps.dependencies.outputs.deps_status != 0 ||
+          steps.tests.outputs.test_status != 0
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Run AI Analyzer
+        id: analyzer
+        if: always()
+        run: |
+          cat > analyze_errors.py << 'EOF'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          
+          # Read error logs
+          error_data = {
+              "docker_build": None,
+              "dependencies": None,
+              "tests": None,
+              "system_info": {}
+          }
+          
+          if Path("docker-build.log").exists():
+              with open("docker-build.log", "r") as f:
+                  error_data["docker_build"] = f.read()
+          
+          if Path("dependencies.log").exists():
+              with open("dependencies.log", "r") as f:
+                  error_data["dependencies"] = f.read()
+          
+          if Path("test-output.log").exists():
+              with open("test-output.log", "r") as f:
+                  error_data["tests"] = f.read()
+          
+          # Print for debugging
+          print("Error data collected:")
+          print(json.dumps({k: (v[:500] if v else None) for k, v in error_data.items()}, indent=2))
+          
+          EOF
+          python3 analyze_errors.py
+
+      - name: Generate AI Report
+        if: always()
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > ai_reporter.py << 'EOF'
+          import os
+          import json
+          import sys
+          from pathlib import Path
+          
+          try:
+              import requests
+          except ImportError:
+              os.system("pip install requests -q")
+              import requests
+          
+          OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+          GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+          
+          if not OPENAI_API_KEY:
+              print("❌ OPENAI_API_KEY not set in secrets")
+              sys.exit(0)
+          
+          # Collect error logs
+          error_logs = {
+              "docker_build": "",
+              "dependencies": "",
+              "tests": ""
+          }
+          
+          if Path("docker-build.log").exists():
+              with open("docker-build.log", "r") as f:
+                  error_logs["docker_build"] = f.read()
+          
+          if Path("dependencies.log").exists():
+              with open("dependencies.log", "r") as f:
+                  error_logs["dependencies"] = f.read()
+          
+          if Path("test-output.log").exists():
+              with open("test-output.log", "r") as f:
+                  error_logs["tests"] = f.read()
+          
+          # If no errors found
+          if not any(error_logs.values()):
+              print("✅ No errors detected, pipeline passed!")
+              sys.exit(0)
+          
+          # Prepare prompt for OpenAI
+          error_summary = f"""
+          Analyze these CI/CD pipeline errors and provide:
+          1. Root cause analysis
+          2. Specific fix recommendations
+          3. Prevention strategies
+          
+          Docker Build Errors:
+          {error_logs['docker_build'] or 'None'}
+          
+          Dependency Installation Errors:
+          {error_logs['dependencies'] or 'None'}
+          
+          Test Errors:
+          {error_logs['tests'] or 'None'}
+          
+          Please be concise and actionable. Format as markdown.
+          """
+          
+          # Call OpenAI API
+          print("🤖 Calling OpenAI API for error analysis...")
+          
+          headers = {
+              "Authorization": f"Bearer {OPENAI_API_KEY}",
+              "Content-Type": "application/json"
+          }
+          
+          payload = {
+              "model": "gpt-4",
+              "messages": [
+                  {
+                      "role": "system",
+                      "content": "You are a DevOps expert analyzing CI/CD pipeline failures. Provide actionable insights."
+                  },
+                  {
+                      "role": "user",
+                      "content": error_summary
+                  }
+              ],
+              "max_tokens": 1500,
+              "temperature": 0.7
+          }
+          
+          try:
+              response = requests.post(
+                  "https://api.openai.com/v1/chat/completions",
+                  headers=headers,
+                  json=payload,
+                  timeout=30
+              )
+              
+              if response.status_code == 200:
+                  analysis = response.json()["choices"][0]["message"]["content"]
+                  print("\n" + "="*60)
+                  print("🤖 AI ERROR ANALYSIS")
+                  print("="*60)
+                  print(analysis)
+                  print("="*60 + "\n")
+                  
+                  # Save report
+                  with open("ai-analysis-report.md", "w") as f:
+                      f.write("# AI Error Analysis Report\n\n")
+                      f.write(analysis)
+                  
+                  # Set output for next step
+                  with open(os.getenv("GITHUB_OUTPUT"), "a") as f:
+                      f.write(f"analysis={analysis}\n")
+                  
+              else:
+                  print(f"❌ OpenAI API error: {response.status_code}")
+                  print(f"Response: {response.text}")
+          
+          except Exception as e:
+              print(f"❌ Error calling OpenAI: {e}")
+          
+          EOF
+          python3 ai_reporter.py
+
+      # Step 6: Post AI Report as GitHub Comment
+      - name: Comment AI Analysis on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let comment = '## 🤖 AI Error Analysis\n\n';
+            
+            if (fs.existsSync('ai-analysis-report.md')) {
+              const report = fs.readFileSync('ai-analysis-report.md', 'utf8');
+              comment += report;
+            } else {
+              comment += '✅ No errors detected - Pipeline passed!';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      # Step 7: Create GitHub Issue for Failed Builds
+      - name: Create GitHub Issue for Failed Build
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let issueBody = '## Pipeline Failure Report\n\n';
+            issueBody += `**Build**: ${context.runId}\n`;
+            issueBody += `**Branch**: ${context.ref}\n\n`;
+            
+            if (fs.existsSync('ai-analysis-report.md')) {
+              const report = fs.readFileSync('ai-analysis-report.md', 'utf8');
+              issueBody += '### AI Analysis\n' + report;
+            }
+            
+            if (fs.existsSync('docker-build.log')) {
+              const logs = fs.readFileSync('docker-build.log', 'utf8');
+              issueBody += '\n\n### Docker Build Logs\n```\n' + logs.substring(0, 1000) + '\n```';
+            }
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 CI Pipeline Failed - ${context.runId}`,
+              body: issueBody,
+              labels: ['pipeline-failure', 'ai-detected']
+            });
+
+      # Step 8: Deploy (only if main branch and no failures)
+      - name: Deploy to Render
+        if: github.ref == 'refs/heads/main' && success()
         env:
           deploy_url: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
+          echo "✅ All checks passed, deploying..."
           curl "$deploy_url"
+          echo "🚀 Deployment triggered!"
+
+      # Step 9: Upload artifacts for debugging
+      - name: Upload Logs as Artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: pipeline-logs
+          path: |
+            docker-build.log
+            dependencies.log
+            test-output.log
+            ai-analysis-report.md
+          retention-days: 30
