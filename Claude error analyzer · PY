@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+"""
+Claude AI-Powered CI/CD Error Analyzer (Anthropic API)
+Analyzes Docker, dependency, and test failures using Claude
+"""
+
+import os
+import json
+import sys
+import argparse
+from pathlib import Path
+from typing import Dict, Optional
+
+try:
+    import requests
+except ImportError:
+    print("Installing requests...")
+    os.system("pip install requests -q")
+    import requests
+
+
+class ClaudeErrorAnalyzer:
+    """Analyze CI/CD pipeline errors using Claude AI (Anthropic API)"""
+    
+    # Available Claude models
+    MODELS = {
+        "claude-opus-4-1": "Most powerful, best analysis (slower, more expensive)",
+        "claude-3-5-sonnet-20241022": "Balanced, fast & smart (recommended)",
+        "claude-haiku-3-5": "Fastest, cheapest (good for simple errors)"
+    }
+    
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        self.base_url = "https://api.anthropic.com/v1/messages"
+        self.errors = {
+            "docker_build": None,
+            "dependencies": None,
+            "tests": None,
+        }
+        
+        if not self.api_key:
+            print("⚠️  WARNING: ANTHROPIC_API_KEY not set. Set it with:")
+            print("   export ANTHROPIC_API_KEY='sk-ant-...'")
+    
+    def load_logs(self, log_dir: str = ".") -> None:
+        """Load error logs from files"""
+        log_files = {
+            "docker_build": "docker-build.log",
+            "dependencies": "dependencies.log",
+            "tests": "test-output.log",
+        }
+        
+        for key, filename in log_files.items():
+            filepath = Path(log_dir) / filename
+            if filepath.exists():
+                try:
+                    with open(filepath, "r") as f:
+                        content = f.read()
+                        self.errors[key] = content
+                        print(f"✅ Loaded {filename}")
+                except Exception as e:
+                    print(f"❌ Error reading {filename}: {e}")
+    
+    def detect_error_type(self) -> str:
+        """Identify the type of error"""
+        if self.errors["docker_build"]:
+            if "File not found" in self.errors["docker_build"]:
+                return "Missing Dockerfile"
+            elif "FROM" in self.errors["docker_build"]:
+                return "Invalid base image"
+            elif "RUN" in self.errors["docker_build"]:
+                return "Docker build command failure"
+            return "Docker build error"
+        
+        if self.errors["dependencies"]:
+            if "permission denied" in self.errors["dependencies"].lower():
+                return "Permission error"
+            elif "not found" in self.errors["dependencies"].lower():
+                return "Missing dependency"
+            elif "version" in self.errors["dependencies"].lower():
+                return "Version conflict"
+            return "Dependency installation error"
+        
+        if self.errors["tests"]:
+            return "Test failure"
+        
+        return "Unknown error"
+    
+    def analyze_with_claude(self, model: str = "claude-3-5-sonnet-20241022") -> Optional[str]:
+        """Send error logs to Anthropic Claude for analysis"""
+        
+        if not self.api_key:
+            print("❌ ANTHROPIC_API_KEY not configured")
+            return None
+        
+        # Check if there are actual errors
+        if not any(self.errors.values()):
+            print("✅ No errors detected")
+            return None
+        
+        # Validate model
+        if model not in self.MODELS:
+            print(f"❌ Unknown model: {model}")
+            print(f"Available: {', '.join(self.MODELS.keys())}")
+            return None
+        
+        # Build the prompt
+        prompt = self._build_prompt()
+        
+        print(f"\n🤖 Analyzing with Claude ({model})...")
+        print("=" * 70)
+        
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        
+        payload = {
+            "model": model,
+            "max_tokens": 1500,
+            "system": """You are a DevOps/DevSecOps expert analyzing CI/CD pipeline failures.
+Provide:
+1. **Root Cause**: What went wrong and why
+2. **Quick Fix**: Immediate steps to resolve
+3. **Prevention**: How to prevent this in future
+4. **Resources**: Links or code references if applicable
+
+Be concise, technical, and actionable. Use markdown formatting.""",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        }
+        
+        try:
+            response = requests.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                analysis = data["content"][0]["text"]
+                return analysis
+            else:
+                print(f"❌ Anthropic API error: {response.status_code}")
+                print(f"Response: {response.text}")
+                return None
+        
+        except requests.exceptions.Timeout:
+            print("❌ API request timed out")
+            return None
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            return None
+    
+    def _build_prompt(self) -> str:
+        """Build the analysis prompt"""
+        prompt = "Analyze these CI/CD pipeline errors:\n\n"
+        
+        if self.errors["docker_build"]:
+            prompt += "## Docker Build Error\n```\n"
+            prompt += self.errors["docker_build"][:2000]
+            prompt += "\n```\n\n"
+        
+        if self.errors["dependencies"]:
+            prompt += "## Dependency Installation Error\n```\n"
+            prompt += self.errors["dependencies"][:2000]
+            prompt += "\n```\n\n"
+        
+        if self.errors["tests"]:
+            prompt += "## Test Error\n```\n"
+            prompt += self.errors["tests"][:2000]
+            prompt += "\n```\n\n"
+        
+        return prompt
+    
+    def save_report(self, analysis: str, filename: str = "ai-analysis-report.md") -> None:
+        """Save analysis to file"""
+        with open(filename, "w") as f:
+            f.write("# Claude AI Error Analysis Report\n\n")
+            f.write(f"**Error Type**: {self.detect_error_type()}\n\n")
+            f.write(analysis)
+        
+        print(f"\n✅ Report saved to {filename}")
+    
+    def print_analysis(self, analysis: str) -> None:
+        """Print analysis to console"""
+        print("\n" + "=" * 70)
+        print("🤖 CLAUDE AI ANALYSIS RESULTS")
+        print("=" * 70)
+        print(analysis)
+        print("=" * 70 + "\n")
+    
+    def list_models(self) -> None:
+        """List available Claude models"""
+        print("\n📊 Available Claude Models:\n")
+        for model, description in self.MODELS.items():
+            print(f"  {model}")
+            print(f"    → {description}\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Claude AI-Powered CI/CD Pipeline Error Analyzer (Anthropic API)"
+    )
+    parser.add_argument(
+        "--log-dir",
+        default=".",
+        help="Directory containing log files (default: current directory)"
+    )
+    parser.add_argument(
+        "--model",
+        default="claude-3-5-sonnet-20241022",
+        choices=list(ClaudeErrorAnalyzer.MODELS.keys()),
+        help="Claude model to use (default: claude-3-5-sonnet-20241022)"
+    )
+    parser.add_argument(
+        "--save",
+        default="ai-analysis-report.md",
+        help="Save report to file"
+    )
+    parser.add_argument(
+        "--no-save",
+        action="store_true",
+        help="Don't save report to file"
+    )
+    parser.add_argument(
+        "--api-key",
+        help="Anthropic API key (or set ANTHROPIC_API_KEY env var)"
+    )
+    parser.add_argument(
+        "--list-models",
+        action="store_true",
+        help="List available Claude models and exit"
+    )
+    
+    args = parser.parse_args()
+    
+    # Initialize analyzer
+    analyzer = ClaudeErrorAnalyzer(api_key=args.api_key)
+    
+    # List models if requested
+    if args.list_models:
+        analyzer.list_models()
+        return
+    
+    # Load logs
+    print(f"📂 Loading logs from {args.log_dir}...")
+    analyzer.load_logs(args.log_dir)
+    
+    # Analyze
+    analysis = analyzer.analyze_with_claude(model=args.model)
+    
+    if analysis:
+        analyzer.print_analysis(analysis)
+        
+        if not args.no_save:
+            analyzer.save_report(analysis, args.save)
+    else:
+        print("⚠️  No analysis available")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
