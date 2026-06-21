@@ -1,4 +1,4 @@
-name: CI with AI Error Detection
+name: CI with AI Error Detection (Anthropic Claude)
 
 on:
   pull_request:
@@ -69,64 +69,22 @@ jobs:
           fi
           echo "test_status=$?" >> $GITHUB_OUTPUT
 
-      # Step 5: Analyze failures with AI
-      - name: AI-Powered Error Analysis
-        id: ai_analysis
-        if: |
-          failure() || 
-          steps.docker_build.outputs.docker_build_status != 0 || 
-          steps.dependencies.outputs.deps_status != 0 ||
-          steps.tests.outputs.test_status != 0
+      # Step 5: Analyze failures with Claude AI
+      - name: Setup Python for Claude Analysis
+        if: always()
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Run AI Analyzer
-        id: analyzer
-        if: always()
-        run: |
-          cat > analyze_errors.py << 'EOF'
-          import json
-          import os
-          import sys
-          from pathlib import Path
-          
-          # Read error logs
-          error_data = {
-              "docker_build": None,
-              "dependencies": None,
-              "tests": None,
-              "system_info": {}
-          }
-          
-          if Path("docker-build.log").exists():
-              with open("docker-build.log", "r") as f:
-                  error_data["docker_build"] = f.read()
-          
-          if Path("dependencies.log").exists():
-              with open("dependencies.log", "r") as f:
-                  error_data["dependencies"] = f.read()
-          
-          if Path("test-output.log").exists():
-              with open("test-output.log", "r") as f:
-                  error_data["tests"] = f.read()
-          
-          # Print for debugging
-          print("Error data collected:")
-          print(json.dumps({k: (v[:500] if v else None) for k, v in error_data.items()}, indent=2))
-          
-          EOF
-          python3 analyze_errors.py
-
-      - name: Generate AI Report
+      - name: Generate AI Report with Claude
+        id: claude_analyzer
         if: always()
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          cat > ai_reporter.py << 'EOF'
-          import os
+          cat > analyze_with_claude.py << 'EOF'
           import json
+          import os
           import sys
           from pathlib import Path
           
@@ -136,11 +94,10 @@ jobs:
               os.system("pip install requests -q")
               import requests
           
-          OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-          GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+          ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
           
-          if not OPENAI_API_KEY:
-              print("❌ OPENAI_API_KEY not set in secrets")
+          if not ANTHROPIC_API_KEY:
+              print("❌ ANTHROPIC_API_KEY not set in secrets")
               sys.exit(0)
           
           # Collect error logs
@@ -167,7 +124,7 @@ jobs:
               print("✅ No errors detected, pipeline passed!")
               sys.exit(0)
           
-          # Prepare prompt for OpenAI
+          # Prepare prompt for Claude
           error_summary = f"""
           Analyze these CI/CD pipeline errors and provide:
           1. Root cause analysis
@@ -175,60 +132,58 @@ jobs:
           3. Prevention strategies
           
           Docker Build Errors:
-          {error_logs['docker_build'] or 'None'}
+          {error_logs['docker_build'][:2000] or 'None'}
           
           Dependency Installation Errors:
-          {error_logs['dependencies'] or 'None'}
+          {error_logs['dependencies'][:2000] or 'None'}
           
           Test Errors:
-          {error_logs['tests'] or 'None'}
+          {error_logs['tests'][:2000] or 'None'}
           
           Please be concise and actionable. Format as markdown.
           """
           
-          # Call OpenAI API
-          print("🤖 Calling OpenAI API for error analysis...")
+          # Call Anthropic API
+          print("🤖 Calling Claude AI for error analysis...")
           
           headers = {
-              "Authorization": f"Bearer {OPENAI_API_KEY}",
-              "Content-Type": "application/json"
+              "x-api-key": ANTHROPIC_API_KEY,
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json"
           }
           
           payload = {
-              "model": "gpt-3.5-turbo",
+              "model": "claude-3-5-sonnet-20241022",
+              "max_tokens": 1500,
+              "system": "You are a DevOps expert analyzing CI/CD pipeline failures. Provide actionable insights.",
               "messages": [
-                  {
-                      "role": "system",
-                      "content": "You are a DevOps expert analyzing CI/CD pipeline failures. Provide actionable insights."
-                  },
                   {
                       "role": "user",
                       "content": error_summary
                   }
-              ],
-              "max_tokens": 1500,
-              "temperature": 0.7
+              ]
           }
           
           try:
               response = requests.post(
-                  "https://api.openai.com/v1/chat/completions",
+                  "https://api.anthropic.com/v1/messages",
                   headers=headers,
                   json=payload,
-                  timeout=30
+                  timeout=60
               )
               
               if response.status_code == 200:
-                  analysis = response.json()["choices"][0]["message"]["content"]
+                  data = response.json()
+                  analysis = data["content"][0]["text"]
                   print("\n" + "="*60)
-                  print("🤖 AI ERROR ANALYSIS")
+                  print("🤖 CLAUDE AI ERROR ANALYSIS")
                   print("="*60)
                   print(analysis)
                   print("="*60 + "\n")
                   
                   # Save report
                   with open("ai-analysis-report.md", "w") as f:
-                      f.write("# AI Error Analysis Report\n\n")
+                      f.write("# Claude AI Error Analysis Report\n\n")
                       f.write(analysis)
                   
                   # Set output for next step
@@ -236,24 +191,24 @@ jobs:
                       f.write(f"analysis={analysis}\n")
                   
               else:
-                  print(f"❌ OpenAI API error: {response.status_code}")
+                  print(f"❌ Anthropic API error: {response.status_code}")
                   print(f"Response: {response.text}")
           
           except Exception as e:
-              print(f"❌ Error calling OpenAI: {e}")
+              print(f"❌ Error calling Claude API: {e}")
           
           EOF
-          python3 ai_reporter.py
+          python3 analyze_with_claude.py
 
       # Step 6: Post AI Report as GitHub Comment
-      - name: Comment AI Analysis on PR
+      - name: Comment Claude Analysis on PR
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             
-            let comment = '## 🤖 AI Error Analysis\n\n';
+            let comment = '## 🤖 Claude AI Error Analysis\n\n';
             
             if (fs.existsSync('ai-analysis-report.md')) {
               const report = fs.readFileSync('ai-analysis-report.md', 'utf8');
@@ -283,7 +238,7 @@ jobs:
             
             if (fs.existsSync('ai-analysis-report.md')) {
               const report = fs.readFileSync('ai-analysis-report.md', 'utf8');
-              issueBody += '### AI Analysis\n' + report;
+              issueBody += '### Claude AI Analysis\n' + report;
             }
             
             if (fs.existsSync('docker-build.log')) {
