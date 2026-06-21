@@ -3,6 +3,7 @@
 FROM nginx:1.27-alpine
 # newline after trivy detects Install latest security patches
 RUN apk update && apk upgrade --no-cache
+#new label added
 LABEL maintainer="Sainudeen Safar"
 RUN rm -rf /usr/share/nginx/html/*
 COPY index.html /usr/share/nginx/html/index.html
