@@ -1,22 +1,25 @@
-name: DevOps Wiki CI/CD + Security Scan
+name: PR Security Check (Trivy)
 
 on:
   pull_request:
-  
+
 jobs:
   ci:
     runs-on: ubuntu-latest
-  
 
-      # -------------------------
-      # Trivy Security Scan (IMPORTANT FIX)
-      # -------------------------
+    steps:
+      # Checkout repo
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Build image (needed for scan)
+      - name: Build Docker Image
+        run: docker build -t devops-wiki .
+
+      # Run Trivy scan (FAIL on HIGH/CRITICAL)
       - name: Run Trivy Security Scan
-        id: trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: devops-wiki
           severity: CRITICAL,HIGH
           exit-code: 1
-
-    
