@@ -1,4 +1,4 @@
-name: CI with AI Error Detection (Anthropic Claude)
+name: DevOps Wiki CI/CD + Security
 
 on:
   pull_request:
@@ -8,271 +8,74 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      issues: write
-      pull-requests: write
+
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Step 1: Analyze Docker & Dependencies
-      - name: Analyze Environment
-        id: analyze
-        run: |
-          echo "::group::Environment Analysis"
-          echo "Docker version:"
-          docker --version
-          
-          echo "Node version (if applicable):"
-          node --version 2>/dev/null || echo "Node not installed"
-          
-          echo "Python version:"
-          python3 --version 2>/dev/null || echo "Python not installed"
-          
-          echo "::endgroup::"
-
-      # Step 2: Build Docker Image (with error capture)
+      # -------------------------
+      # Build Docker Image
+      # -------------------------
       - name: Build Docker Image
-        id: docker_build
         continue-on-error: true
         run: |
-          docker build -t myapp:latest . 2>&1 | tee docker-build.log
-          echo "docker_build_status=$?" >> $GITHUB_OUTPUT
+          docker build -t devops-wiki . 2>&1 | tee docker.log
 
-      # Step 3: Install dependencies
-      - name: Install Dependencies
-        id: dependencies
+      # -------------------------
+      # Trivy Security Scan
+      # -------------------------
+      - name: Run Trivy Scan
         continue-on-error: true
-        run: |
-          if [ -f "package.json" ]; then
-            npm ci 2>&1 | tee dependencies.log
-            echo "deps_status=$?" >> $GITHUB_OUTPUT
-          elif [ -f "requirements.txt" ]; then
-            pip install -r requirements.txt 2>&1 | tee dependencies.log
-            echo "deps_status=$?" >> $GITHUB_OUTPUT
-          else
-            echo "No dependency file found"
-          fi
-
-      # Step 4: Run Tests
-      - name: Run Tests
-        id: tests
-        continue-on-error: true
-        run: |
-          if [ -f "package.json" ]; then
-            npm test 2>&1 | tee test-output.log
-          elif [ -f "pytest.ini" ] || [ -f "setup.py" ]; then
-            python3 -m pytest 2>&1 | tee test-output.log
-          else
-            echo "No test framework detected"
-          fi
-          echo "test_status=$?" >> $GITHUB_OUTPUT
-
-      # Step 5: Analyze failures with Claude AI
-      - name: Setup Python for Claude Analysis
-        if: always()
-        uses: actions/setup-python@v4
+        uses: aquasecurity/trivy-action@master
         with:
-          python-version: '3.11'
+          image-ref: devops-wiki
+          severity: CRITICAL,HIGH
 
-      - name: Generate AI Report with Claude
-        id: claude_analyzer
-        if: always()
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          cat > analyze_with_claude.py << 'EOF'
-          import json
-          import os
-          import sys
-          from pathlib import Path
-          
-          try:
-              import requests
-          except ImportError:
-              os.system("pip install requests -q")
-              import requests
-          
-          ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-          
-          if not ANTHROPIC_API_KEY:
-              print("❌ ANTHROPIC_API_KEY not set in secrets")
-              sys.exit(0)
-          
-          # Collect error logs
-          error_logs = {
-              "docker_build": "",
-              "dependencies": "",
-              "tests": ""
-          }
-          
-          if Path("docker-build.log").exists():
-              with open("docker-build.log", "r") as f:
-                  error_logs["docker_build"] = f.read()
-          
-          if Path("dependencies.log").exists():
-              with open("dependencies.log", "r") as f:
-                  error_logs["dependencies"] = f.read()
-          
-          if Path("test-output.log").exists():
-              with open("test-output.log", "r") as f:
-                  error_logs["tests"] = f.read()
-          
-          # If no errors found
-          if not any(error_logs.values()):
-              print("✅ No errors detected, pipeline passed!")
-              sys.exit(0)
-          
-          # Prepare prompt for Claude
-          error_summary = f"""
-          Analyze these CI/CD pipeline errors and provide:
-          1. Root cause analysis
-          2. Specific fix recommendations
-          3. Prevention strategies
-          
-          Docker Build Errors:
-          {error_logs['docker_build'][:2000] or 'None'}
-          
-          Dependency Installation Errors:
-          {error_logs['dependencies'][:2000] or 'None'}
-          
-          Test Errors:
-          {error_logs['tests'][:2000] or 'None'}
-          
-          Please be concise and actionable. Format as markdown.
-          """
-          
-          # Call Anthropic API
-          print("🤖 Calling Claude AI for error analysis...")
-          
-          headers = {
-              "x-api-key": ANTHROPIC_API_KEY,
-              "anthropic-version": "2023-06-01",
-              "content-type": "application/json"
-          }
-          
-          payload = {
-              "model": "claude-3-5-sonnet-20241022",
-              "max_tokens": 1500,
-              "system": "You are a DevOps expert analyzing CI/CD pipeline failures. Provide actionable insights.",
-              "messages": [
-                  {
-                      "role": "user",
-                      "content": error_summary
-                  }
-              ]
-          }
-          
-          try:
-              response = requests.post(
-                  "https://api.anthropic.com/v1/messages",
-                  headers=headers,
-                  json=payload,
-                  timeout=60
-              )
-              
-              if response.status_code == 200:
-                  data = response.json()
-                  analysis = data["content"][0]["text"]
-                  print("\n" + "="*60)
-                  print("🤖 CLAUDE AI ERROR ANALYSIS")
-                  print("="*60)
-                  print(analysis)
-                  print("="*60 + "\n")
-                  
-                  # Save report
-                  with open("ai-analysis-report.md", "w") as f:
-                      f.write("# Claude AI Error Analysis Report\n\n")
-                      f.write(analysis)
-                  
-                  # Set output for next step
-                  with open(os.getenv("GITHUB_OUTPUT"), "a") as f:
-                      f.write(f"analysis={analysis}\n")
-                  
-              else:
-                  print(f"❌ Anthropic API error: {response.status_code}")
-                  print(f"Response: {response.text}")
-          
-          except Exception as e:
-              print(f"❌ Error calling Claude API: {e}")
-          
-          EOF
-          python3 analyze_with_claude.py
-
-      # Step 6: Post AI Report as GitHub Comment
-      - name: Comment Claude Analysis on PR
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            
-            let comment = '## 🤖 Claude AI Error Analysis\n\n';
-            
-            if (fs.existsSync('ai-analysis-report.md')) {
-              const report = fs.readFileSync('ai-analysis-report.md', 'utf8');
-              comment += report;
-            } else {
-              comment += '✅ No errors detected - Pipeline passed!';
-            }
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
-
-      # Step 7: Create GitHub Issue for Failed Builds
-      - name: Create GitHub Issue for Failed Build
+      # -------------------------
+      # Generate Failure Report
+      # -------------------------
+      - name: Generate final.md
         if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            
-            let issueBody = '## Pipeline Failure Report\n\n';
-            issueBody += `**Build**: ${context.runId}\n`;
-            issueBody += `**Branch**: ${context.ref}\n\n`;
-            
-            if (fs.existsSync('ai-analysis-report.md')) {
-              const report = fs.readFileSync('ai-analysis-report.md', 'utf8');
-              issueBody += '### Claude AI Analysis\n' + report;
-            }
-            
-            if (fs.existsSync('docker-build.log')) {
-              const logs = fs.readFileSync('docker-build.log', 'utf8');
-              issueBody += '\n\n### Docker Build Logs\n```\n' + logs.substring(0, 1000) + '\n```';
-            }
-            
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `🚨 CI Pipeline Failed - ${context.runId}`,
-              body: issueBody,
-              labels: ['pipeline-failure', 'ai-detected']
-            });
+        run: |
+          echo "# ❌ CI Failure Report" > final.md
+          echo "" >> final.md
 
-      # Step 8: Deploy (only if main branch and no failures)
+          echo "## 🐳 Docker Logs" >> final.md
+          echo '```text' >> final.md
+          tail -n 200 docker.log >> final.md
+          echo '```' >> final.md
+
+          echo "" >> final.md
+          echo "## 🔐 Security Scan (Trivy)" >> final.md
+          echo "Check workflow logs for CVEs (HIGH/CRITICAL)" >> final.md
+
+          echo "" >> final.md
+          echo "## 📌 Context" >> final.md
+          echo "- Project: DevOps Wiki" >> final.md
+          echo "- Type: Static Docker Nginx Site" >> final.md
+
+          echo "" >> final.md
+          echo "## 🤖 Next Step" >> final.md
+          echo "Paste this file into Claude and ask for fix + corrected Dockerfile/YAML" >> final.md
+
+      # -------------------------
+      # UPLOAD ARTIFACT (IMPORTANT)
+      # -------------------------
+      - name: Upload Failure Report Artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-failure-report
+          path: final.md
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && success()
+
+    steps:
       - name: Deploy to Render
-        if: github.ref == 'refs/heads/main' && success()
         env:
           deploy_url: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          echo "✅ All checks passed, deploying..."
           curl "$deploy_url"
-          echo "🚀 Deployment triggered!"
-
-      # Step 9: Upload artifacts for debugging
-      - name: Upload Logs as Artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pipeline-logs
-          path: |
-            docker-build.log
-            dependencies.log
-            test-output.log
-            ai-analysis-report.md
-          retention-days: 30
