@@ -79,7 +79,7 @@ jobs:
   # DEPLOY ONLY IF CI PASSES
   # -------------------------
   deploy:
-    needs: ci
+    needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && success()
 
