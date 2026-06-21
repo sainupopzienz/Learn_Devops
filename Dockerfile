@@ -20,3 +20,4 @@ RUN printf 'server {\n\
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 
+
