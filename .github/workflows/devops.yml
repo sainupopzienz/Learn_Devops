@@ -1,7 +1,7 @@
 name: DevOps Wiki CI/CD + Security Scan
 
 on:
-  pull_request:
+  #pull_request:
   push:
     branches: [main]
 
