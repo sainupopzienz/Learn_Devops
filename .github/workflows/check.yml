@@ -4,7 +4,7 @@ on:
   pull_request:
   
 jobs:
-  ci:
+  pr-security-check:
     runs-on: ubuntu-latest
   
 
